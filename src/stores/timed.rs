@@ -51,7 +51,7 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
             initial_capacity: Some(size),
             refresh: false,
         };
-        // x.run_daemon();
+        x.run_daemon();
         x
     }
 
@@ -68,7 +68,7 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
             initial_capacity: None,
             refresh,
         };
-        // x.run_daemon();
+        x.run_daemon();
         x
     }
 
