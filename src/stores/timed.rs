@@ -32,6 +32,7 @@ pub struct TimedCache<K, V> {
     pub(super) misses: u64,
     pub(super) initial_capacity: Option<usize>,
     pub(super) refresh: bool,
+    pub(super) runtime: Runtime,
 }
 
 impl<K: Hash + Eq, V> TimedCache<K, V> {
@@ -50,6 +51,7 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
             misses: 0,
             initial_capacity: Some(size),
             refresh: false,
+            runtime: Runtime::new().unwrap()
         };
         x.run_daemon();
         x
@@ -58,8 +60,6 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
     /// Creates a new `TimedCache` with a specified lifespan which
     /// refreshes the ttl when the entry is retreived
     pub fn with_lifespan_and_refresh(seconds: u64, refresh: bool) -> TimedCache<K, V> {
-        let mut rt = Runtime::new().unwrap();
-
         let x = TimedCache {
             store: Self::new_store(None),
             seconds,
@@ -67,6 +67,7 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
             misses: 0,
             initial_capacity: None,
             refresh,
+            runtime: Runtime::new().unwrap()
         };
         x.run_daemon();
         x
@@ -104,8 +105,7 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
 impl<K, V> TimedCache<K, V> {
 
     pub fn run_daemon(&self){
-        let mut rt = Runtime::new().unwrap();
-        rt.spawn(async move {
+        self.runtime.spawn(async move {
             loop {
                 dbg!("Test1");
                 sleep(Duration::from_secs(5)).await;
