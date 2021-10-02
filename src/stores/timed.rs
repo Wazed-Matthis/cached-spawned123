@@ -3,7 +3,9 @@ use std::cmp::Eq;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+use tokio::runtime::Runtime;
+use tokio::time::sleep;
 
 #[cfg(feature = "async")]
 use {super::CachedAsync, async_trait::async_trait, futures::Future};
@@ -41,28 +43,48 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
     /// Creates a new `TimedCache` with a specified lifespan and
     /// cache-store with the specified pre-allocated capacity
     pub fn with_lifespan_and_capacity(seconds: u64, size: usize) -> TimedCache<K, V> {
-        TimedCache {
+        let x = TimedCache {
             store: Self::new_store(Some(size)),
             seconds,
             hits: 0,
             misses: 0,
             initial_capacity: Some(size),
             refresh: false,
-        }
+        };
+        // x.run_daemon();
+        x
     }
 
     /// Creates a new `TimedCache` with a specified lifespan which
     /// refreshes the ttl when the entry is retreived
     pub fn with_lifespan_and_refresh(seconds: u64, refresh: bool) -> TimedCache<K, V> {
-        TimedCache {
+        let mut rt = Runtime::new().unwrap();
+
+        let x = TimedCache {
             store: Self::new_store(None),
             seconds,
             hits: 0,
             misses: 0,
             initial_capacity: None,
             refresh,
-        }
+        };
+        // x.run_daemon();
+        x
     }
+
+    /*fn install_daemon(self) -> Self{
+        let timer = DelayTimerBuilder::default().build();
+        timer.insert_task({
+            let mut task_builder = TaskBuilder::default();
+            create_async_fn_body!({
+               println!("Start yeeting");
+                Timer::after(Duration::from_secs(3)).await;
+                println!("End yeeting");
+            });
+            todo!()
+        });
+        self
+    }*/
 
     /// Returns if the lifetime is refreshed when the value is retrived
     pub fn refresh(&self) -> bool {
@@ -76,6 +98,20 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
 
     fn new_store(capacity: Option<usize>) -> HashMap<K, (Instant, V)> {
         capacity.map_or_else(HashMap::new, HashMap::with_capacity)
+    }
+}
+
+impl<K, V> TimedCache<K, V> {
+
+    pub fn run_daemon(&self){
+        let mut rt = Runtime::new().unwrap();
+        rt.spawn(async move {
+            loop {
+                dbg!("Test1");
+                sleep(Duration::from_secs(5)).await;
+                dbg!("Test");
+            }
+        });
     }
 }
 
@@ -209,14 +245,14 @@ impl<K: Hash + Eq, V> Cached<K, V> for TimedCache<K, V> {
 #[cfg(feature = "async")]
 #[async_trait]
 impl<K, V> CachedAsync<K, V> for TimedCache<K, V>
-where
-    K: Hash + Eq + Clone + Send,
+    where
+      K: Hash + Eq + Clone + Send,
 {
     async fn get_or_set_with<F, Fut>(&mut self, k: K, f: F) -> &mut V
-    where
-        V: Send,
-        F: FnOnce() -> Fut + Send,
-        Fut: Future<Output = V> + Send,
+        where
+          V: Send,
+          F: FnOnce() -> Fut + Send,
+          Fut: Future<Output = V> + Send,
     {
         match self.store.entry(k) {
             Entry::Occupied(mut occupied) => {
@@ -239,10 +275,10 @@ where
     }
 
     async fn try_get_or_set_with<F, Fut, E>(&mut self, k: K, f: F) -> Result<&mut V, E>
-    where
-        V: Send,
-        F: FnOnce() -> Fut + Send,
-        Fut: Future<Output = Result<V, E>> + Send,
+        where
+          V: Send,
+          F: FnOnce() -> Fut + Send,
+          Fut: Future<Output = Result<V, E>> + Send,
     {
         let v = match self.store.entry(k) {
             Entry::Occupied(mut occupied) => {
