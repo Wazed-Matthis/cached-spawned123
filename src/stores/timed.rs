@@ -109,8 +109,11 @@ impl <K: Hash + Eq, V> TimedCache<K, V>{
             task.abort();
         }
         let mut ref123 = &self;
+        let seconds = self.seconds;
         let task = Arc::new(self.runtime.spawn(async move {
             // ref123.cache_get(key);
+            sleep(Duration::from_secs(seconds));
+            println!("Evict cache");
         }));
         if let Some(mut entry) = self.store.remove_entry(key){
             entry.1.2 = Some(task);
