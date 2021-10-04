@@ -104,21 +104,20 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
 
 impl <K: Hash + Eq, V> TimedCache<K, V>{
     fn reset_task(&mut self, key: &K){
-        if let Some(mut store) = self.store.remove(key){
-            if let Some(task) = &store.2 {
-                task.abort();
-            }
-            let mut ref123 = &self;
-            let seconds = self.seconds;
-            let task = Arc::new(self.runtime.spawn(async move {
-                // ref123.cache_get(key);
-                sleep(Duration::from_secs(seconds));
-                println!("Evict cache");
-            }));
-            if let Some(mut entry) = self.store.remove_entry(key){
-                entry.1.2 = Some(task);
-                self.store.insert(entry.0, entry.1);
-            }
+        let mut store = self.store.remove(key).unwrap();
+        if let Some(task) = &store.2 {
+            task.abort();
+        }
+        let mut ref123 = &self;
+        let seconds = self.seconds;
+        let task = Arc::new(self.runtime.spawn(async move {
+            // ref123.cache_get(key);
+            sleep(Duration::from_secs(seconds));
+            println!("Evict cache");
+        }));
+        if let Some(mut entry) = self.store.remove_entry(key){
+            entry.1.2 = Some(task);
+            self.store.insert(entry.0, entry.1);
         }
     }
 }
@@ -194,7 +193,6 @@ impl<K: Hash + Eq, V> Cached<K, V> for TimedCache<K, V> {
 
     fn cache_set(&mut self, key: K, val: V) -> Option<V> {
         let stamped = (Instant::now(), val, None);
-        self.reset_task(&key);
         self.store.insert(key, stamped).map(|(_, v,_)| v)
     }
 
