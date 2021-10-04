@@ -189,10 +189,13 @@ impl<K: Hash + Eq, V> Cached<K, V> for TimedCache<K, V> {
 
     fn cache_set(&mut self, key: K, val: V) -> Option<V> {
         self.stop_task(&key);
-        self.store.insert(key, (Instant::now(), val, Some(self.create_task()))).map(|(_, v,_)| v)
+        let task = self.create_task();
+        self.store.insert(key, (Instant::now(), val, Some(task))).map(|(_, v,_)| v)
     }
 
     fn cache_get_or_set_with<F: FnOnce() -> V>(&mut self, key: K, f: F) -> &mut V {
+        self.stop_task(&key);
+        let task = self.create_task();
         match self.store.entry(key) {
             Entry::Occupied(mut occupied) => {
                 if occupied.get().0.elapsed().as_secs() < self.seconds {
@@ -203,16 +206,14 @@ impl<K: Hash + Eq, V> Cached<K, V> for TimedCache<K, V> {
                 } else {
                     self.misses += 1;
                     let val = f();
-                    self.stop_task(vacant.key());
-                    occupied.insert((Instant::now(), val, Some(self.create_task())));
+                    occupied.insert((Instant::now(), val, Some(task)));
                 }
                 &mut occupied.into_mut().1
             }
             Entry::Vacant(vacant) => {
                 self.misses += 1;
                 let val = f();
-                self.stop_task(vacant.key());
-                &mut vacant.insert((Instant::now(), val, Some(self.create_task()))).1
+                &mut vacant.insert((Instant::now(), val, Some(task))).1
             }
         }
     }
@@ -261,6 +262,8 @@ impl<K, V> CachedAsync<K, V> for TimedCache<K, V>
           F: FnOnce() -> Fut + Send,
           Fut: Future<Output = V> + Send,
     {
+        self.stop_task(&k);
+        let task = self.create_task();
         match self.store.entry(k) {
             Entry::Occupied(mut occupied) => {
                 if occupied.get().0.elapsed().as_secs() < self.seconds {
@@ -270,15 +273,13 @@ impl<K, V> CachedAsync<K, V> for TimedCache<K, V>
                     self.hits += 1;
                 } else {
                     self.misses += 1;
-                    self.stop_task(occupied.key());
-                    occupied.insert((Instant::now(), f().await, Some(self.create_task())));
+                    occupied.insert((Instant::now(), f().await, Some(task)));
                 }
                 &mut occupied.into_mut().1
             }
             Entry::Vacant(vacant) => {
                 self.misses += 1;
-                self.stop_task(occupied.key());
-                &mut vacant.insert((Instant::now(), f().await, Some(self.create_task()))).1
+                &mut vacant.insert((Instant::now(), f().await, Some(task))).1
             }
         }
     }
@@ -289,6 +290,9 @@ impl<K, V> CachedAsync<K, V> for TimedCache<K, V>
           F: FnOnce() -> Fut + Send,
           Fut: Future<Output = Result<V, E>> + Send,
     {
+        self.stop_task(&k);
+        let task = self.create_task();
+
         let v = match self.store.entry(k) {
             Entry::Occupied(mut occupied) => {
                 if occupied.get().0.elapsed().as_secs() < self.seconds {
@@ -298,15 +302,13 @@ impl<K, V> CachedAsync<K, V> for TimedCache<K, V>
                     self.hits += 1;
                 } else {
                     self.misses += 1;
-                    self.stop_task(occupied.key());
-                    occupied.insert((Instant::now(), f().await?, Some(self.create_task())));
+                    occupied.insert((Instant::now(), f().await?, Some(task)));
                 }
                 &mut occupied.into_mut().1
             }
             Entry::Vacant(vacant) => {
                 self.misses += 1;
-                self.stop_task(occupied.key());
-                &mut vacant.insert((Instant::now(), f().await?, Some(self.create_task()))).1
+                &mut vacant.insert((Instant::now(), f().await?, Some(task))).1
             }
         };
 
