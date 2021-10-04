@@ -288,9 +288,11 @@ pub fn cached(args: TokenStream, input: TokenStream) -> TokenStream {
         quote! {
             /// Cached static
             #visibility static #cache_ident: ::cached::once_cell::sync::Lazy<::cached::async_mutex::Mutex<#cache_ty>> = ::cached::once_cell::sync::Lazy::new(||
-                let cache = ::cached::async_mutex::Mutex::new(#cache_create);
-                dbg!("Mimimimimi");
-                cache
+                {
+                    let cache = ::cached::async_mutex::Mutex::new(#cache_create);
+                    dbg!("Mimimimimi");
+                    cache
+                }
             );
 
             /// Cached function
