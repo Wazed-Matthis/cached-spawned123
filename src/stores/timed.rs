@@ -3,7 +3,6 @@ use std::cmp::Eq;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tokio::time::sleep;
@@ -33,7 +32,7 @@ pub struct TimedCache<K, V> {
     pub(super) misses: u64,
     pub(super) initial_capacity: Option<usize>,
     pub(super) refresh: bool,
-    pub(super) runtime: Arc<Runtime>,
+    pub(super) runtime: Runtime,
 }
 
 impl<K: Hash + Eq, V> TimedCache<K, V> {
@@ -52,7 +51,7 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
             misses: 0,
             initial_capacity: Some(size),
             refresh: false,
-            runtime: Arc::new(Runtime::new().unwrap())
+            runtime: Runtime::new().unwrap()
         };
         x.run_daemon();
         x
@@ -68,7 +67,7 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
             misses: 0,
             initial_capacity: None,
             refresh,
-            runtime: Arc::new(Runtime::new().unwrap())
+            runtime: Runtime::new().unwrap()
         };
         x.run_daemon();
         x
