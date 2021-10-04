@@ -187,7 +187,7 @@ impl<K: Hash + Eq, V> Cached<K, V> for TimedCache<K, V> {
             let seconds = self.seconds;
             Arc::new(self.runtime.spawn(async move {
                 // ref123.cache_get(key);
-                sleep(Duration::from_secs(seconds));
+                sleep(Duration::from_secs(seconds)).await;
                 println!("Evict cache");
             }))
         }));
