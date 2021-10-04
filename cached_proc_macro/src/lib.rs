@@ -290,7 +290,11 @@ pub fn cached(args: TokenStream, input: TokenStream) -> TokenStream {
             #visibility static #cache_ident: ::cached::once_cell::sync::Lazy<::cached::async_mutex::Mutex<#cache_ty>> = ::cached::once_cell::sync::Lazy::new(||
                 {
                     let cache = ::cached::async_mutex::Mutex::new(#cache_create);
-                    dbg!("Mimimimimi");
+                    let runtime = tokio::runtime::Runtime::new().unwrap();
+                    runtime.spawn(async move {
+                        dbg!("Spawned123");
+                    });
+
                     cache
                 }
             );
