@@ -3,13 +3,10 @@ use std::cmp::Eq;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::option::Option::Some;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tokio::time::sleep;
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
 
 #[cfg(feature = "async")]
 use {super::CachedAsync, async_trait::async_trait, futures::Future};
@@ -30,7 +27,7 @@ enum Status {
 /// Note: This cache is in-memory only
 #[derive(Clone, Debug)]
 pub struct TimedCache<K, V> {
-    pub(super) store: HashMap<K, (Instant, V, Option<Arc<JoinHandle<()>>>)>,
+    pub(super) store: HashMap<K, (Instant, V)>,
     pub(super) seconds: u64,
     pub(super) hits: u64,
     pub(super) misses: u64,
@@ -48,29 +45,33 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
     /// Creates a new `TimedCache` with a specified lifespan and
     /// cache-store with the specified pre-allocated capacity
     pub fn with_lifespan_and_capacity(seconds: u64, size: usize) -> TimedCache<K, V> {
-        TimedCache {
+        let x = TimedCache {
             store: Self::new_store(Some(size)),
             seconds,
             hits: 0,
             misses: 0,
             initial_capacity: Some(size),
             refresh: false,
-            runtime: Arc::new(Runtime::new().unwrap()),
-        }
+            runtime: Arc::new(Runtime::new().unwrap())
+        };
+        x.run_daemon();
+        x
     }
 
     /// Creates a new `TimedCache` with a specified lifespan which
     /// refreshes the ttl when the entry is retreived
     pub fn with_lifespan_and_refresh(seconds: u64, refresh: bool) -> TimedCache<K, V> {
-        TimedCache {
+        let x = TimedCache {
             store: Self::new_store(None),
             seconds,
             hits: 0,
             misses: 0,
             initial_capacity: None,
             refresh,
-            runtime: Arc::new(Runtime::new().unwrap()),
-        }
+            runtime: Arc::new(Runtime::new().unwrap())
+        };
+        x.run_daemon();
+        x
     }
 
     /*fn install_daemon(self) -> Self{
@@ -97,25 +98,21 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
         self.refresh = refresh
     }
 
-    fn new_store(capacity: Option<usize>) -> HashMap<K, (Instant, V, Option<Arc<JoinHandle<()>>>)> {
+    fn new_store(capacity: Option<usize>) -> HashMap<K, (Instant, V)> {
         capacity.map_or_else(HashMap::new, HashMap::with_capacity)
     }
 }
 
-impl <K: Hash + Eq, V> TimedCache<K, V>{
-    fn reset_task(&mut self, key: &K){
-        let mut store = self.store.remove(key).unwrap();
-        if let Some(task) = &store.2 {
-            task.abort();
-        }
-        let mut ref123 = &self;
-        let task = Arc::new(self.runtime.spawn(async move {
-            // ref123.cache_get(key);
-        }));
-        if let Some(mut entry) = self.store.remove_entry(key){
-            entry.1.2 = Some(task);
-            self.store.insert(entry.0, entry.1);
-        }
+impl<K, V> TimedCache<K, V> {
+
+    pub fn run_daemon(&self){
+        self.runtime.spawn(async move {
+            loop {
+                dbg!("Test1");
+                sleep(Duration::from_secs(5)).await;
+                dbg!("Test");
+            }
+        });
     }
 }
 
@@ -123,7 +120,7 @@ impl<K: Hash + Eq, V> Cached<K, V> for TimedCache<K, V> {
     fn cache_get(&mut self, key: &K) -> Option<&V> {
         let status = {
             let mut val = self.store.get_mut(key);
-            if let Some(&mut (instant, _, evict_task)) = val.as_mut() {
+            if let Some(&mut (instant, _)) = val.as_mut() {
                 if instant.elapsed().as_secs() < self.seconds {
                     if self.refresh {
                         *instant = Instant::now();
@@ -143,7 +140,6 @@ impl<K: Hash + Eq, V> Cached<K, V> for TimedCache<K, V> {
             }
             Status::Found => {
                 self.hits += 1;
-                self.reset_task(key);
                 self.store.get(key).map(|stamped| &stamped.1)
             }
             Status::Expired => {
@@ -157,7 +153,7 @@ impl<K: Hash + Eq, V> Cached<K, V> for TimedCache<K, V> {
     fn cache_get_mut(&mut self, key: &K) -> Option<&mut V> {
         let status = {
             let mut val = self.store.get_mut(key);
-            if let Some(&mut (instant, _, _)) = val.as_mut() {
+            if let Some(&mut (instant, _)) = val.as_mut() {
                 if instant.elapsed().as_secs() < self.seconds {
                     if self.refresh {
                         *instant = Instant::now();
@@ -177,7 +173,6 @@ impl<K: Hash + Eq, V> Cached<K, V> for TimedCache<K, V> {
             }
             Status::Found => {
                 self.hits += 1;
-                self.reset_task(key);
                 self.store.get_mut(key).map(|stamped| &mut stamped.1)
             }
             Status::Expired => {
@@ -186,11 +181,6 @@ impl<K: Hash + Eq, V> Cached<K, V> for TimedCache<K, V> {
                 None
             }
         }
-    }
-
-    fn cache_set(&mut self, key: K, val: V) -> Option<V> {
-        let stamped = (Instant::now(), val, None);
-        self.store.insert(key, stamped).map(|(_, v,_)| v)
     }
 
     fn cache_get_or_set_with<F: FnOnce() -> V>(&mut self, key: K, f: F) -> &mut V {
@@ -204,29 +194,34 @@ impl<K: Hash + Eq, V> Cached<K, V> for TimedCache<K, V> {
                 } else {
                     self.misses += 1;
                     let val = f();
-                    occupied.insert((Instant::now(), val, None));
+                    occupied.insert((Instant::now(), val));
                 }
                 &mut occupied.into_mut().1
             }
             Entry::Vacant(vacant) => {
                 self.misses += 1;
                 let val = f();
-                &mut vacant.insert((Instant::now(), val, None)).1
+                &mut vacant.insert((Instant::now(), val)).1
             }
         }
     }
+
+    fn cache_set(&mut self, key: K, val: V) -> Option<V> {
+        let stamped = (Instant::now(), val);
+        self.store.insert(key, stamped).map(|(_, v)| v)
+    }
     fn cache_remove(&mut self, k: &K) -> Option<V> {
-        self.store.remove(k).map(|(_, v,_)| v)
+        self.store.remove(k).map(|(_, v)| v)
     }
     fn cache_clear(&mut self) {
         self.store.clear();
     }
-    fn cache_reset(&mut self) {
-        self.store = Self::new_store(self.initial_capacity);
-    }
     fn cache_reset_metrics(&mut self) {
         self.misses = 0;
         self.hits = 0;
+    }
+    fn cache_reset(&mut self) {
+        self.store = Self::new_store(self.initial_capacity);
     }
     fn cache_size(&self) -> usize {
         self.store.len()
@@ -269,13 +264,13 @@ impl<K, V> CachedAsync<K, V> for TimedCache<K, V>
                     self.hits += 1;
                 } else {
                     self.misses += 1;
-                    occupied.insert((Instant::now(), f().await, None));
+                    occupied.insert((Instant::now(), f().await));
                 }
                 &mut occupied.into_mut().1
             }
             Entry::Vacant(vacant) => {
                 self.misses += 1;
-                &mut vacant.insert((Instant::now(), f().await, None)).1
+                &mut vacant.insert((Instant::now(), f().await)).1
             }
         }
     }
@@ -295,13 +290,13 @@ impl<K, V> CachedAsync<K, V> for TimedCache<K, V>
                     self.hits += 1;
                 } else {
                     self.misses += 1;
-                    occupied.insert((Instant::now(), f().await?, None));
+                    occupied.insert((Instant::now(), f().await?));
                 }
                 &mut occupied.into_mut().1
             }
             Entry::Vacant(vacant) => {
                 self.misses += 1;
-                &mut vacant.insert((Instant::now(), f().await?, None)).1
+                &mut vacant.insert((Instant::now(), f().await?)).1
             }
         };
 

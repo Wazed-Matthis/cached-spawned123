@@ -51,7 +51,7 @@ optional = true
 
 [dependencies.tokio]
 version = "1.5.0"
-features = ["full"]
+features = ["macros", "time", "rt-multi-thread"]
 
 [dev-dependencies.async-std]
 version = "1.6"
