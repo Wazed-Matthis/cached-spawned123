@@ -224,7 +224,13 @@ pub fn cached(args: TokenStream, input: TokenStream) -> TokenStream {
         (false, Some(size), Some(time), None, None) => {
             let cache_ty = quote! {cached::TimedSizedCache<#cache_key_ty, #cache_value_ty>};
             let cache_create =
-                quote! {cached::TimedSizedCache::with_size_and_lifespan(#size, #time)};
+                quote! {
+                    {
+                        let timed_cache = cached::TimedSizedCache::with_size_and_lifespan(#size, #time);
+                        dbg!("Create cache yeet");
+                        timed_cache
+                    }
+                };
             (cache_ty, cache_create)
         }
         (false, None, None, None, None) => {
