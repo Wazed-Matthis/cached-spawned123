@@ -454,6 +454,7 @@ pub extern crate once_cell;
 mod lru_list;
 pub mod macros;
 pub mod stores;
+pub mod tokio;
 
 pub use stores::{SizedCache, TimedCache, TimedSizedCache, UnboundCache};
 

@@ -20,6 +20,7 @@ proc-macro = true
 quote = "1.0.6"
 darling = "0.10.2"
 async-mutex = "1.1.5"
+nodrop = "0.1.14"
 
 [dependencies.syn]
 version = "1.0.27"
@@ -28,4 +29,8 @@ features = ["full"]
 [dependencies.cached_proc_macro_types]
 version = "0.1.0"
 path = "../cached_proc_macro_types"
+
+[dependencies.tokio]
+version = "1.5.0"
+features = ["full"]
 

@@ -290,7 +290,7 @@ pub fn cached(args: TokenStream, input: TokenStream) -> TokenStream {
             #visibility static #cache_ident: ::cached::once_cell::sync::Lazy<::cached::async_mutex::Mutex<#cache_ty>> = ::cached::once_cell::sync::Lazy::new(||
                 {
                     let cache = ::cached::async_mutex::Mutex::new(#cache_create);
-                    let runtime = tokio::runtime::Runtime::new().unwrap();
+                    let runtime = ::cached::tokio::RUNTIME.clone();
                     runtime.spawn(async move {
                         dbg!("Spawned123");
                     });
@@ -324,7 +324,13 @@ pub fn cached(args: TokenStream, input: TokenStream) -> TokenStream {
     } else {
         quote! {
             /// Cached static
-            #visibility static #cache_ident: ::cached::once_cell::sync::Lazy<std::sync::Mutex<#cache_ty>> = ::cached::once_cell::sync::Lazy::new(|| std::sync::Mutex::new(#cache_create));
+            #visibility static #cache_ident: ::cached::once_cell::sync::Lazy<std::sync::Mutex<#cache_ty>> = ::cached::once_cell::sync::Lazy::new(|| {
+                let runtime = ::cached::tokio::RUNTIME.clone();
+                  runtime.spawn(async move {
+                      dbg!("Spawned123");
+                  });
+                std::sync::Mutex::new(#cache_create)
+            });
             /// Cached function
             #visibility #signature {
                 use cached::Cached;
