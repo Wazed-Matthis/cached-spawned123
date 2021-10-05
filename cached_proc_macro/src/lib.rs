@@ -294,8 +294,7 @@ pub fn cached(args: TokenStream, input: TokenStream) -> TokenStream {
                     let cache_clone = cache.clone();
                     runtime.spawn(async move {
                         let mut cache = cache_clone.lock().await;
-                        cache.cache_get(todo!());
-                        cache.deref_mut();
+                        cache.cache_reset();
                         dbg!("Spawned123");
                     });
 
