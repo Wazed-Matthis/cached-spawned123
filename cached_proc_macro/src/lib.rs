@@ -291,7 +291,11 @@ pub fn cached(args: TokenStream, input: TokenStream) -> TokenStream {
                 {
                     let cache = std::sync::Arc::new(::cached::async_mutex::Mutex::new(#cache_create));
                     let runtime = ::cached::tokio::RUNTIME.clone();
+                    let cache_clone = cache.clone();
                     runtime.spawn(async move {
+                        let mut cache = cache_clone.lock().await;
+                        cache.cache_get(todo!());
+                        cache.deref_mut();
                         dbg!("Spawned123");
                     });
 
