@@ -24,7 +24,7 @@ pub struct TimedSizedCache<K, V> {
     pub(super) hits: u64,
     pub(super) misses: u64,
     pub(super) refresh: bool,
-    pub(super) channel: Arc<(Sender<K>, Receiver<K>)>
+    pub(super) channel: Arc<(Sender<(K, u64)>, Receiver<(K, u64)>)>
 }
 
 impl<K: Hash + Eq + Clone, V> TimedSizedCache<K, V> {
@@ -87,7 +87,7 @@ impl<K: Hash + Eq + Clone, V> TimedSizedCache<K, V> {
 }
 
 impl<K: Hash + Eq + Clone, V> Cached<K, V> for TimedSizedCache<K, V> {
-    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)> {
+    fn get_channel(&self) -> Arc<(Sender<(K, u64)>, Receiver<(K, u64)>)> {
         self.channel.clone()
     }
     fn cache_get(&mut self, key: &K) -> Option<&V> {
@@ -95,7 +95,6 @@ impl<K: Hash + Eq + Clone, V> Cached<K, V> for TimedSizedCache<K, V> {
         let val = self
             .store
             .get_mut_if(key, |stamped| stamped.0.elapsed().as_secs() < max_seconds);
-        self.channel.0.send(key.clone());
         match val {
             None => {
                 self.misses += 1;

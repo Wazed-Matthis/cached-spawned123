@@ -26,7 +26,7 @@ pub struct SizedCache<K, V> {
     pub(super) capacity: usize,
     pub(super) hits: u64,
     pub(super) misses: u64,
-    pub(super) channel: Arc<(Sender<K>, Receiver<K>)>
+    pub(super) channel: Arc<(Sender<(K, u64)>, Receiver<(K, u64)>)>
 }
 
 impl<K, V> fmt::Debug for SizedCache<K, V>
@@ -332,7 +332,7 @@ where
 }
 
 impl<K: Hash + Eq + Clone, V> Cached<K, V> for SizedCache<K, V> {
-    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)> {
+    fn get_channel(&self) -> Arc<(Sender<(K, u64)>, Receiver<(K, u64)>)> {
         self.channel.clone()
     }
 

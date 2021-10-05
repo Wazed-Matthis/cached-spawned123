@@ -32,7 +32,7 @@ pub struct TimedCache<K, V> {
     pub(super) misses: u64,
     pub(super) initial_capacity: Option<usize>,
     pub(super) refresh: bool,
-    pub(super) channel: Arc<(Sender<K>, Receiver<K>)>
+    pub(super) channel: Arc<(Sender<(K, u64)>, Receiver<(K, u64)>)>
 }
 
 impl<K: Hash + Eq + Clone, V> TimedCache<K, V> {
@@ -85,10 +85,11 @@ impl<K: Hash + Eq + Clone, V> TimedCache<K, V> {
 }
 
 impl<K: Hash + Eq + Clone, V> Cached<K, V> for TimedCache<K, V> {
-    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)> {
+    fn get_channel(&self) -> Arc<(Sender<(K, u64)>, Receiver<(K, u64)>)> {
         self.channel.clone()
     }
     fn cache_get(&mut self, key: &K) -> Option<&V> {
+        self.channel.0.send((key.clone(), self.seconds));
         let status = {
             let mut val = self.store.get_mut(key);
             if let Some(&mut (instant, _)) = val.as_mut() {

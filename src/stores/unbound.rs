@@ -21,7 +21,7 @@ pub struct UnboundCache<K, V> {
     pub(super) hits: u64,
     pub(super) misses: u64,
     pub(super) initial_capacity: Option<usize>,
-    pub(super) channel: Arc<(Sender<K>, Receiver<K>)>
+    pub(super) channel: Arc<(Sender<(K, u64)>, Receiver<(K, u64)>)>
 }
 
 impl<K, V> PartialEq for UnboundCache<K, V>
@@ -71,7 +71,7 @@ impl<K: Hash + Eq + Clone, V> UnboundCache<K, V> {
 }
 
 impl<K: Hash + Eq + Clone, V> Cached<K, V> for UnboundCache<K, V> {
-    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)> {
+    fn get_channel(&self) -> Arc<(Sender<(K, u64)>, Receiver<(K, u64)>)> {
         self.channel.clone()
     }
     fn cache_get(&mut self, key: &K) -> Option<&V> {

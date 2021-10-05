@@ -295,10 +295,15 @@ pub fn cached(args: TokenStream, input: TokenStream) -> TokenStream {
                     let cache_mutex = std::sync::Arc::new(::cached::async_mutex::Mutex::new(cache));
                     let runtime = ::cached::tokio_rt::RUNTIME.clone();
 
-                    runtime.spawn(async move {
-                      while let Ok(message) = receiver.recv().await {
-                        dbg!("Yeet");
-                      }
+                    runtime.spawn({
+                        let cache_mutex = cache_mutex.clone();
+
+                        async move {
+                            while let Ok((key, seconds)) = receiver.recv().await {
+                                tokio::time::sleep(std::time::Duration::from_secs(seconds)).await;
+                                cache_mutex.lock().await.cache_remove(&key);
+                            }
+                        }
                     });
 
                     cache_mutex

@@ -44,7 +44,7 @@ impl<K: Hash + Eq + Clone, V> Cached<K, V> for HashMap<K, V> {
     fn cache_size(&self) -> usize {
         self.len()
     }
-    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)> {
+    fn get_channel(&self) -> Arc<(Sender<(K, u64)>, Receiver<(K, u64)>)> {
         todo!()
     }
 }

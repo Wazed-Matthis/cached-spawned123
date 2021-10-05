@@ -528,7 +528,7 @@ pub trait Cached<K: Clone, V> {
         None
     }
 
-    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)>;
+    fn get_channel(&self) -> Arc<(Sender<(K, u64)>, Receiver<(K, u64)>)>;
 }
 
 #[cfg(feature = "async")]
