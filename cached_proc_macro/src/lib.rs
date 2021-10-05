@@ -289,16 +289,19 @@ pub fn cached(args: TokenStream, input: TokenStream) -> TokenStream {
             /// Cached static
             #visibility static #cache_ident: ::cached::once_cell::sync::Lazy<std::sync::Arc<::cached::async_mutex::Mutex<#cache_ty>>> = ::cached::once_cell::sync::Lazy::new(||
                 {
-                    let cache = std::sync::Arc::new(::cached::async_mutex::Mutex::new(#cache_create));
-                    let runtime = ::cached::tokio::RUNTIME.clone();
-                    let cache_clone = cache.clone();
+                    use cached::Cached;
+                    let cache = #cache_create;
+                    let mut receiver = cache.get_channel().0.subscribe();
+                    let cache_mutex = std::sync::Arc::new(::cached::async_mutex::Mutex::new(cache));
+                    let runtime = ::cached::tokio_rt::RUNTIME.clone();
+
                     runtime.spawn(async move {
-                        let mut cache = cache_clone.lock().await;
-                        cache.cache_reset();
-                        dbg!("Spawned123");
+                      while let Ok(message) = receiver.recv().await {
+                        dbg!("Yeet");
+                      }
                     });
 
-                    cache
+                    cache_mutex
                 }
             );
 
@@ -328,10 +331,11 @@ pub fn cached(args: TokenStream, input: TokenStream) -> TokenStream {
         quote! {
             /// Cached static
             #visibility static #cache_ident: ::cached::once_cell::sync::Lazy<std::sync::Arc<std::sync::Mutex<#cache_ty>>> = ::cached::once_cell::sync::Lazy::new(|| {
-                let runtime = ::cached::tokio::RUNTIME.clone();
-                  runtime.spawn(async move {
-                      dbg!("Spawned123");
-                  });
+                let runtime = ::cached::tokio_rt::RUNTIME.clone();
+
+                runtime.spawn(async move {
+                    dbg!("Spawned123");
+                });
                 std::sync::Arc::new(std::sync::Mutex::new(#cache_create))
             });
             /// Cached function

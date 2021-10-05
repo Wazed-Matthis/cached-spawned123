@@ -1,9 +1,11 @@
 use std::cmp::Eq;
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::sync::Arc;
 
 use std::thread::sleep;
 use std::time::Duration;
+use tokio::sync::broadcast::{Receiver, Sender};
 
 use cached::proc_macro::cached;
 use cached::Return;
@@ -75,16 +77,21 @@ fn keyed_key(a: &str, b: &str) -> usize {
 struct MyCache<K: Hash + Eq, V> {
     store: HashMap<K, V>,
     capacity: usize,
+    channel: Arc<(Sender<K>, Receiver< K>)>
 }
-impl<K: Hash + Eq, V> MyCache<K, V> {
+impl<K: Hash + Eq + Clone, V> MyCache<K, V> {
     pub fn with_capacity(size: usize) -> MyCache<K, V> {
         MyCache {
             store: HashMap::with_capacity(size),
             capacity: size,
+            channel: Arc::new(tokio::sync::broadcast::channel(1))
         }
     }
 }
-impl<K: Hash + Eq, V> Cached<K, V> for MyCache<K, V> {
+impl<K: Hash + Eq + Clone, V> Cached<K, V> for MyCache<K, V> {
+    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)> {
+        self.channel.clone()
+    }
     fn cache_get(&mut self, k: &K) -> Option<&V> {
         self.store.get(k)
     }

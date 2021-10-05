@@ -1,8 +1,10 @@
 use super::Cached;
 use std::cmp::Eq;
-use std::collections::hash_map::Entry;
+use std::collections::hash_map::{Entry, Keys};
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::sync::Arc;
+use tokio::sync::broadcast::{Receiver, Sender};
 
 #[cfg(feature = "async")]
 use {super::CachedAsync, async_trait::async_trait, futures::Future};
@@ -17,7 +19,7 @@ pub use timed::TimedCache;
 pub use timed_sized::TimedSizedCache;
 pub use unbound::UnboundCache;
 
-impl<K: Hash + Eq, V> Cached<K, V> for HashMap<K, V> {
+impl<K: Hash + Eq + Clone, V> Cached<K, V> for HashMap<K, V> {
     fn cache_get(&mut self, k: &K) -> Option<&V> {
         self.get(k)
     }
@@ -41,6 +43,9 @@ impl<K: Hash + Eq, V> Cached<K, V> for HashMap<K, V> {
     }
     fn cache_size(&self) -> usize {
         self.len()
+    }
+    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)> {
+        todo!()
     }
 }
 

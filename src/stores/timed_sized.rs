@@ -1,7 +1,9 @@
 use super::{Cached, SizedCache};
 use std::cmp::Eq;
 use std::hash::Hash;
+use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::broadcast::{Receiver, Sender};
 
 #[cfg(feature = "async")]
 use {super::CachedAsync, async_trait::async_trait, futures::Future};
@@ -22,6 +24,7 @@ pub struct TimedSizedCache<K, V> {
     pub(super) hits: u64,
     pub(super) misses: u64,
     pub(super) refresh: bool,
+    pub(super) channel: Arc<(Sender<K>, Receiver<K>)>
 }
 
 impl<K: Hash + Eq + Clone, V> TimedSizedCache<K, V> {
@@ -47,6 +50,7 @@ impl<K: Hash + Eq + Clone, V> TimedSizedCache<K, V> {
             hits: 0,
             misses: 0,
             refresh,
+            channel: Arc::new(tokio::sync::broadcast::channel(1))
         }
     }
 
@@ -83,11 +87,15 @@ impl<K: Hash + Eq + Clone, V> TimedSizedCache<K, V> {
 }
 
 impl<K: Hash + Eq + Clone, V> Cached<K, V> for TimedSizedCache<K, V> {
+    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)> {
+        self.channel.clone()
+    }
     fn cache_get(&mut self, key: &K) -> Option<&V> {
         let max_seconds = self.seconds;
         let val = self
             .store
             .get_mut_if(key, |stamped| stamped.0.elapsed().as_secs() < max_seconds);
+        self.channel.0.send(key.clone());
         match val {
             None => {
                 self.misses += 1;

@@ -454,8 +454,10 @@ pub extern crate once_cell;
 mod lru_list;
 pub mod macros;
 pub mod stores;
-pub mod tokio;
+pub mod tokio_rt;
 
+use std::collections::hash_map::Keys;
+use std::sync::Arc;
 pub use stores::{SizedCache, TimedCache, TimedSizedCache, UnboundCache};
 
 #[cfg(feature = "proc_macro")]
@@ -470,9 +472,10 @@ pub use proc_macro::Return;
 
 #[cfg(feature = "async")]
 use {async_trait::async_trait, futures::Future};
+use tokio::sync::broadcast::{Receiver, Sender};
 
 /// Cache operations
-pub trait Cached<K, V> {
+pub trait Cached<K: Clone, V> {
     /// Attempt to retrieve a cached value
     fn cache_get(&mut self, k: &K) -> Option<&V>;
 
@@ -524,11 +527,13 @@ pub trait Cached<K, V> {
     fn cache_set_lifespan(&mut self, _seconds: u64) -> Option<u64> {
         None
     }
+
+    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)>;
 }
 
 #[cfg(feature = "async")]
 #[async_trait]
-pub trait CachedAsync<K, V> {
+pub trait CachedAsync<K: Clone, V> {
     async fn get_or_set_with<F, Fut>(&mut self, k: K, f: F) -> &mut V
     where
         V: Send,

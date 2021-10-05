@@ -3,7 +3,9 @@ use std::cmp::Eq;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::broadcast::{Receiver, Sender};
 
 #[cfg(feature = "async")]
 use {super::CachedAsync, async_trait::async_trait, futures::Future};
@@ -30,9 +32,10 @@ pub struct TimedCache<K, V> {
     pub(super) misses: u64,
     pub(super) initial_capacity: Option<usize>,
     pub(super) refresh: bool,
+    pub(super) channel: Arc<(Sender<K>, Receiver<K>)>
 }
 
-impl<K: Hash + Eq, V> TimedCache<K, V> {
+impl<K: Hash + Eq + Clone, V> TimedCache<K, V> {
     /// Creates a new `TimedCache` with a specified lifespan
     pub fn with_lifespan(seconds: u64) -> TimedCache<K, V> {
         Self::with_lifespan_and_refresh(seconds, false)
@@ -48,6 +51,7 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
             misses: 0,
             initial_capacity: Some(size),
             refresh: false,
+            channel: Arc::new(tokio::sync::broadcast::channel(1))
         }
     }
 
@@ -61,6 +65,7 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
             misses: 0,
             initial_capacity: None,
             refresh,
+            channel: Arc::new(tokio::sync::broadcast::channel(1))
         }
     }
 
@@ -79,7 +84,10 @@ impl<K: Hash + Eq, V> TimedCache<K, V> {
     }
 }
 
-impl<K: Hash + Eq, V> Cached<K, V> for TimedCache<K, V> {
+impl<K: Hash + Eq + Clone, V> Cached<K, V> for TimedCache<K, V> {
+    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)> {
+        self.channel.clone()
+    }
     fn cache_get(&mut self, key: &K) -> Option<&V> {
         let status = {
             let mut val = self.store.get_mut(key);

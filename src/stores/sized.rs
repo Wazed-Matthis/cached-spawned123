@@ -2,9 +2,11 @@ use super::Cached;
 use crate::lru_list::LRUList;
 use hashbrown::raw::RawTable;
 use std::cmp::Eq;
-use std::collections::hash_map::RandomState;
+use std::collections::hash_map::{Keys, RandomState};
 use std::fmt;
 use std::hash::{BuildHasher, Hash, Hasher};
+use std::sync::Arc;
+use tokio::sync::broadcast::{Receiver, Sender};
 
 #[cfg(feature = "async")]
 use {super::CachedAsync, async_trait::async_trait, futures::Future};
@@ -24,6 +26,7 @@ pub struct SizedCache<K, V> {
     pub(super) capacity: usize,
     pub(super) hits: u64,
     pub(super) misses: u64,
+    pub(super) channel: Arc<(Sender<K>, Receiver<K>)>
 }
 
 impl<K, V> fmt::Debug for SizedCache<K, V>
@@ -83,6 +86,7 @@ impl<K: Hash + Eq + Clone, V> SizedCache<K, V> {
             capacity: size,
             hits: 0,
             misses: 0,
+            channel: Arc::new(tokio::sync::broadcast::channel(1))
         }
     }
 
@@ -328,6 +332,10 @@ where
 }
 
 impl<K: Hash + Eq + Clone, V> Cached<K, V> for SizedCache<K, V> {
+    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)> {
+        self.channel.clone()
+    }
+
     fn cache_get(&mut self, key: &K) -> Option<&V> {
         self.get_if(key, |_| true)
     }

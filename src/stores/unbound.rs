@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 use std::collections::hash_map::Entry;
+use std::sync::Arc;
+use tokio::sync::broadcast::{Receiver, Sender};
 
 #[cfg(feature = "async")]
 use {super::CachedAsync, async_trait::async_trait, futures::Future};
@@ -19,6 +21,7 @@ pub struct UnboundCache<K, V> {
     pub(super) hits: u64,
     pub(super) misses: u64,
     pub(super) initial_capacity: Option<usize>,
+    pub(super) channel: Arc<(Sender<K>, Receiver<K>)>
 }
 
 impl<K, V> PartialEq for UnboundCache<K, V>
@@ -38,7 +41,7 @@ where
 {
 }
 
-impl<K: Hash + Eq, V> UnboundCache<K, V> {
+impl<K: Hash + Eq + Clone, V> UnboundCache<K, V> {
     /// Creates an empty `UnboundCache`
     #[allow(clippy::new_without_default)]
     pub fn new() -> UnboundCache<K, V> {
@@ -47,6 +50,7 @@ impl<K: Hash + Eq, V> UnboundCache<K, V> {
             hits: 0,
             misses: 0,
             initial_capacity: None,
+            channel: Arc::new(tokio::sync::broadcast::channel(1))
         }
     }
 
@@ -57,6 +61,7 @@ impl<K: Hash + Eq, V> UnboundCache<K, V> {
             hits: 0,
             misses: 0,
             initial_capacity: Some(size),
+            channel: Arc::new(tokio::sync::broadcast::channel(1))
         }
     }
 
@@ -65,7 +70,10 @@ impl<K: Hash + Eq, V> UnboundCache<K, V> {
     }
 }
 
-impl<K: Hash + Eq, V> Cached<K, V> for UnboundCache<K, V> {
+impl<K: Hash + Eq + Clone, V> Cached<K, V> for UnboundCache<K, V> {
+    fn get_channel(&self) -> Arc<(Sender<K>, Receiver<K>)> {
+        self.channel.clone()
+    }
     fn cache_get(&mut self, key: &K) -> Option<&V> {
         match self.store.get(key) {
             Some(v) => {
