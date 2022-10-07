@@ -336,11 +336,6 @@ pub fn cached(args: TokenStream, input: TokenStream) -> TokenStream {
         quote! {
             /// Cached static
             #visibility static #cache_ident: ::cached::once_cell::sync::Lazy<std::sync::Arc<std::sync::Mutex<#cache_ty>>> = ::cached::once_cell::sync::Lazy::new(|| {
-                let runtime = ::cached::tokio_rt::RUNTIME.clone();
-
-                runtime.spawn(async move {
-                    dbg!("Spawned123");
-                });
                 std::sync::Arc::new(std::sync::Mutex::new(#cache_create))
             });
             /// Cached function
